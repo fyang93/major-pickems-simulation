@@ -1,30 +1,21 @@
-"""
-CS2 Major Pick'Em 模拟器主程序
-实现：瑞士轮比赛模拟、多进程加速、结果统计等功能
-
-主要功能：
-1. 模拟瑞士轮比赛过程
-2. 计算队伍间的胜率
-3. 统计不同战绩组合的出现频率
-4. 多进程并行计算以提高效率
-"""
-
 from __future__ import annotations
 
 import json
-from argparse import ArgumentParser
+import csv
 from dataclasses import dataclass
-from functools import lru_cache, reduce
+from functools import lru_cache, reduce, partial
 from multiprocessing import Pool
 from os import cpu_count
-from random import random
-from statistics import median
 from time import perf_counter_ns
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 import numpy as np
 import tqdm
 
-from config import VRS_WEIGHT, HLTV_WEIGHT, SIGMA, win_probability
+file_path = "stage_1.json"
+
+def _batch_task(args: tuple[Callable[[int], dict], int]) -> tuple[int, dict]:
+    batch_func, iterations = args
+    return iterations, batch_func(iterations)
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -133,16 +124,16 @@ class SwissSystem:
     瑞士轮系统
 
     Attributes:
-        sigma: Elo公式的sigma值
+        win_matrix: 预计算的胜率矩阵
         records: 所有队伍的比赛记录
         remaining: 仍在比赛中的队伍集合
     """
-    sigma: tuple[int, ...]
+    win_matrix: dict[str, dict[str, float]]
     records: dict[Team, Record]
     remaining: set[Team]
 
-    def __init__(self, sigma: tuple[int, ...], records: dict[Team, Record], remaining: set[Team]):
-        self.sigma = sigma
+    def __init__(self, win_matrix: dict[str, dict[str, float]], records: dict[Team, Record], remaining: set[Team]):
+        self.win_matrix = win_matrix
         self.records = records
         self.remaining = remaining
 
@@ -177,8 +168,17 @@ class SwissSystem:
         # 判断是否为BO3
         is_bo3 = self.records[team_a].wins == 2 or self.records[team_a].losses == 2
 
-        # 计算单图胜率
-        p = win_probability(team_a, team_b, self.sigma)
+        # 计算单图胜率（来自预计算矩阵）
+        try:
+            p = self.win_matrix[team_a.name][team_b.name]
+        except KeyError:
+            try:
+                reverse_p = self.win_matrix[team_b.name][team_a.name]
+            except KeyError as exc:
+                raise KeyError(
+                    f"胜率矩阵中缺少 {team_a.name} vs {team_b.name} 的数据，请检查 win_matrix.csv。"
+                ) from exc
+            p = 1 - reverse_p
 
         # 生成随机数
         if is_bo3:
@@ -366,18 +366,43 @@ class SwissSystem:
             round_num += 1
 
 
+def load_win_matrix_from_csv(file_path: Path | str) -> dict[str, dict[str, float]]:
+    """
+    从CSV文件加载胜率矩阵
+    """
+    win_matrix: dict[str, dict[str, float]] = {}
+
+    with open(file_path, newline="", encoding="utf-8") as csv_file:
+        reader = csv.DictReader(csv_file)
+        if not reader.fieldnames or reader.fieldnames[0] != "Team":
+            raise ValueError("win_matrix.csv 的表头必须以 'Team' 开头")
+
+        for row in reader:
+            team_name = row.get("Team")
+            if not team_name:
+                continue
+            win_matrix[team_name] = {}
+            for opponent, value in row.items():
+                if opponent == "Team" or not value or value == "-":
+                    continue
+                win_matrix[team_name][opponent] = float(value)
+
+    return win_matrix
+
+
+@dataclass
 class Simulation:
     """
     模拟器主类
 
     Attributes:
-        sigma: Elo公式的sigma值
         teams: 参赛队伍集合
+        win_matrix: 预计算的胜率矩阵
     """
-    sigma: tuple[int, ...]
     teams: set[Team]
+    win_matrix: dict[str, dict[str, float]]
 
-    def __init__(self, filepath: Path) -> None:
+    def __init__(self, filepath: Path | str, win_matrix_path: Path | str = "win_matrix.csv") -> None:
         """
         从JSON文件加载数据并初始化模拟器
         """
@@ -391,7 +416,6 @@ class Simulation:
                 i += 1
 
         auto_id = id_generator()
-        self.sigma = (SIGMA, SIGMA)
         self.teams = {
             Team(
                 id=next(auto_id),
@@ -404,8 +428,9 @@ class Simulation:
             )
             for team_k, team_v in data["teams"].items()
         }
+        self.win_matrix = load_win_matrix_from_csv(win_matrix_path)
 
-    def batch(self, n: int) -> dict[Team, Result]:
+    def batch(self, n: int, show_progress: bool = True) -> dict[Team, Result]:
         """
         运行n次模拟
         """
@@ -416,18 +441,21 @@ class Simulation:
         random_values = np.random.random(n * 10)  # 预生成足够的随机数
         random_index = 0
 
-        # 添加进度条
-        with tqdm.tqdm(
-            total=n,
-            desc="模拟进度",
-            ncols=100,
-            bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]',
-            position=0,
-            leave=True
-        ) as pbar:
-            for sim_id in range(n):
+        progress_bar = None
+        if show_progress and n > 0:
+            progress_bar = tqdm.tqdm(
+                total=n,
+                desc="模拟进度",
+                ncols=100,
+                bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]',
+                position=0,
+                leave=True
+            )
+
+        try:
+            for _ in range(n):
                 ss = SwissSystem(
-                    sigma=self.sigma,
+                    win_matrix=self.win_matrix,
                     records={team: Record.new() for team in self.teams},
                     remaining=set(self.teams),
                 )
@@ -462,9 +490,12 @@ class Simulation:
                 key = f"3-0: {', '.join(sim_result['3-0'])} | 3-1/3-2: {', '.join(sim_result['3-1/3-2'])} | 0-3: {', '.join(sim_result['0-3'])}"
                 all_combinations[key] = all_combinations.get(key, 0) + 1
 
-                # 更新进度条
-                pbar.update(1)
-                pbar.set_postfix({'当前组合数': len(all_combinations)})
+                if progress_bar:
+                    progress_bar.update(1)
+                    progress_bar.set_postfix({'当前组合数': len(all_combinations)})
+        finally:
+            if progress_bar:
+                progress_bar.close()
 
         # 将组合结果添加到第一个队伍的结果中
         results[list(self.teams)[0]].pickem_results = all_combinations
@@ -475,17 +506,26 @@ class Simulation:
         """
         使用k个进程运行n次模拟
         """
-        # 计算每个进程的迭代次数
-        iterations_per_process = n // k
-        remaining_iterations = n % k
-        
-        # 创建任务列表
-        tasks = []
-        for i in range(k):
-            # 最后一个进程处理剩余的迭代次数
-            iterations = iterations_per_process + (remaining_iterations if i == k-1 else 0)
-            tasks.append(iterations)
-        
+        if k <= 1:
+            return self.batch(n, show_progress=True)
+
+        def _run_batch_chunk(iterations: int) -> tuple[int, dict[Team, Result]]:
+            return iterations, self.batch(iterations, show_progress=False)
+
+        # 计算每个任务块的迭代次数，块越小进度刷新越频繁
+        chunk_estimate = n // (k * 10) if k > 0 else n
+        chunk_size = max(1, min(5000, max(1, chunk_estimate)))
+
+        tasks: list[int] = []
+        remaining_iterations = n
+        while remaining_iterations > 0:
+            current = min(chunk_size, remaining_iterations)
+            tasks.append(current)
+            remaining_iterations -= current
+
+        if not tasks:
+            return {team: Result.new() for team in self.teams}
+
         # 创建进度条
         with tqdm.tqdm(
             total=n,
@@ -499,10 +539,12 @@ class Simulation:
             with Pool(k) as pool:
                 # 使用imap处理任务，这样可以实时获取结果
                 results = []
-                for result in pool.imap(self.batch, tasks):
+                batch_func = partial(self.batch, show_progress=False)
+                task_args = [(batch_func, iterations) for iterations in tasks]
+                for iterations, result in pool.imap_unordered(_batch_task, task_args):
                     results.append(result)
                     # 更新进度条
-                    pbar.update(iterations_per_process)
+                    pbar.update(iterations)
                     pbar.set_postfix({'当前组合数': len(result[list(self.teams)[0]].pickem_results)})
 
         # 合并所有进程的结果
@@ -517,12 +559,12 @@ class Simulation:
 def format_results(results: dict[Team, Result], n: int, run_time: float) -> list[str]:
     """
     格式化模拟结果
-    
+
     Args:
         results: 模拟结果
         n: 模拟次数
         run_time: 运行时间
-    
+
     Returns:
         list[str]: 格式化的结果字符串列表
     """
@@ -531,7 +573,7 @@ def format_results(results: dict[Team, Result], n: int, run_time: float) -> list
     # 输出组合统计
     all_combinations = list(results.values())[0].pickem_results
     sorted_combinations = sorted(all_combinations.items(), key=lambda x: x[1], reverse=True)
-    filename = f"{VRS_WEIGHT:.4f}_{HLTV_WEIGHT:.4f}_{SIGMA:.4f}.txt"
+    filename = "result.txt"
     with open(filename, 'w', encoding='utf-8') as f:
         for combination, count in sorted_combinations:
             f.write(f"{combination}: {count}/{n} ({count/n*100:.4f}%)\n")
@@ -541,9 +583,8 @@ def format_results(results: dict[Team, Result], n: int, run_time: float) -> list
 
 
 if __name__ == "__main__":
-    # 直接使用2025_austin_stage_1.json文件
-    file_path = "2025_austin_stage_2.json"
-    n_iterations = 50000000  # 增加迭代次数以获得更准确的结果
+
+    n_iterations = 10000000  # 增加迭代次数以获得更准确的结果
     n_cores = max(1, cpu_count() - 1)  # 保留一个核心给系统使用
 
     # 运行模拟并打印格式化结果
