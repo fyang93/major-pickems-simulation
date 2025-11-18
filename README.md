@@ -1,9 +1,9 @@
-# 2025 Austin Major Pick'Em Simulator
-# 2025 奥斯汀 Major 竞猜模拟器
+# CS2 Major Pick'Em Simulator
+# CS2 Major 竞猜模拟器
 
-This is a Python program for simulating the 2025 CS2 Austin Major. The program uses the Swiss system format to predict team performances through match simulations.
+This is a Python program for simulating the CS2 Major. The program uses the Swiss system format to predict team performances through match simulations.
 
-这是一个用于模拟 2025 CS2 Austin Major 的 Python 程序。该程序基于瑞士轮赛制,通过模拟比赛来预测各支队伍的表现。
+这是一个用于模拟 CS2 Austin Major 的 Python 程序。该程序基于瑞士轮赛制,通过模拟比赛来预测各支队伍的表现。
 
 ## Project References
 ## 项目参考
@@ -44,44 +44,10 @@ This project is developed based on the following open-source projects:
   - Sigma value adjustment / Sigma值调整
   - Team data configuration / 队伍数据配置
 
-## Installation
-## 安装说明
-
-```bash
-pip install -r requirements.txt
-```
-
-## Usage
-## 使用方法
-
-1. Configure Parameters / 配置参数:
-   - Set team information and weights in `config.py` / 在 `config.py` 中设置队伍信息和权重
-   - Adjust `VRS_WEIGHT` and `HLTV_WEIGHT` parameters / 调整 `VRS_WEIGHT` 和 `HLTV_WEIGHT` 参数
-   - Set `SIGMA` value / 设置 `SIGMA` 值
-
-2. Run Simulation / 运行模拟:
-```bash
-python simulate.py
-```
-
-3. View Results / 查看结果:
-   - File naming format / 文件名格式: `VRS_WEIGHT_HLTV_WEIGHT_SIGMA.txt`
-
-4. Solve Pick'Em Combinations / 竞猜组合求解:
-```bash
-python greedy.py
-```
-
-## Parameters
-## 参数说明
-
-- `VRS_WEIGHT`: VRS Rating Weight (Default: 0.7) / VRS 评分权重 (默认: 0.7)
-- `HLTV_WEIGHT`: HLTV Rating Weight (Default: 0.3) / HLTV 评分权重 (默认: 0.3)
-- `SIGMA`: Standard Deviation Parameter (Default: 349.2) / 标准差参数 (默认: 349.2)
-
 ## License
 ## 许可证
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
 
 本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。 
