@@ -10,6 +10,8 @@ from time import perf_counter_ns
 from typing import TYPE_CHECKING, Callable
 import numpy as np
 import tqdm
+import pandas as pd
+from joblib import Parallel, delayed
 
 file_path = "stage_1.json"
 
@@ -370,24 +372,11 @@ def load_win_matrix_from_csv(file_path: Path | str) -> dict[str, dict[str, float
     """
     从CSV文件加载胜率矩阵
     """
-    win_matrix: dict[str, dict[str, float]] = {}
-
-    with open(file_path, newline="", encoding="utf-8") as csv_file:
-        reader = csv.DictReader(csv_file)
-        if not reader.fieldnames or reader.fieldnames[0] != "Team":
-            raise ValueError("win_matrix.csv 的表头必须以 'Team' 开头")
-
-        for row in reader:
-            team_name = row.get("Team")
-            if not team_name:
-                continue
-            win_matrix[team_name] = {}
-            for opponent, value in row.items():
-                if opponent == "Team" or not value or value == "-":
-                    continue
-                win_matrix[team_name][opponent] = float(value)
-
-    return win_matrix
+    df = pd.read_csv(file_path, index_col=0)
+    df.index = df.index.astype(str)
+    df.columns = df.columns.astype(str)
+    df = df.apply(pd.to_numeric, errors='coerce')
+    return df.to_dict()
 
 
 @dataclass
@@ -502,6 +491,7 @@ class Simulation:
 
         return results
 
+
     def run(self, n: int, k: int) -> dict[Team, Result]:
         """
         使用k个进程运行n次模拟
@@ -509,10 +499,7 @@ class Simulation:
         if k <= 1:
             return self.batch(n, show_progress=True)
 
-        def _run_batch_chunk(iterations: int) -> tuple[int, dict[Team, Result]]:
-            return iterations, self.batch(iterations, show_progress=False)
-
-        # 计算每个任务块的迭代次数，块越小进度刷新越频繁
+        # 计算任务分配
         chunk_estimate = n // (k * 10) if k > 0 else n
         chunk_size = max(1, min(5000, max(1, chunk_estimate)))
 
@@ -526,34 +513,51 @@ class Simulation:
         if not tasks:
             return {team: Result.new() for team in self.teams}
 
-        # 创建进度条
+        # 使用 joblib 并行处理
+        print("开始并行模拟...")
+        results = Parallel(n_jobs=k, backend='loky')(
+            delayed(self.batch)(iterations, show_progress=False) 
+            for iterations in tqdm.tqdm(tasks, desc="模拟进度", ncols=100)
+        )
+
+        # 优化合并策略 - 带进度条
+        print("开始合并结果...")
+        return self._merge_results_optimized(results)
+
+    def _merge_results_optimized(self, results: list[dict[Team, Result]]) -> dict[Team, Result]:
+        """
+        优化的结果合并 - 使用二分合并减少内存分配，带进度条
+        """
+        if not results:
+            return {team: Result.new() for team in self.teams}
+        
+        if len(results) == 1:
+            return results[0]
+        
+        # 计算总共需要的合并次数
+        total_merges = len(results) - 1
+        
         with tqdm.tqdm(
-            total=n,
-            desc="模拟进度",
+            total=total_merges,
+            desc="合并进度",
             ncols=100,
-            bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]',
-            position=0,
-            leave=True
+            bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
         ) as pbar:
-            # 创建进程池
-            with Pool(k) as pool:
-                # 使用imap处理任务，这样可以实时获取结果
-                results = []
-                batch_func = partial(self.batch, show_progress=False)
-                task_args = [(batch_func, iterations) for iterations in tasks]
-                for iterations, result in pool.imap_unordered(_batch_task, task_args):
-                    results.append(result)
-                    # 更新进度条
-                    pbar.update(iterations)
-                    pbar.set_postfix({'当前组合数': len(result[list(self.teams)[0]].pickem_results)})
-
-        # 合并所有进程的结果
-        def _f(acc: dict[Team, Result], results: dict[Team, Result]) -> dict[Team, Result]:
-            for team, result in results.items():
-                acc[team] += result
-            return acc
-
-        return reduce(_f, results)
+            # 二分合并,减少大对象复制
+            while len(results) > 1:
+                merged = []
+                for i in range(0, len(results), 2):
+                    if i + 1 < len(results):
+                        # 就地合并
+                        for team in results[i]:
+                            results[i][team] += results[i + 1][team]
+                        merged.append(results[i])
+                        pbar.update(1)  # 每次合并更新进度
+                    else:
+                        merged.append(results[i])
+                results = merged
+        
+        return results[0]
 
 
 def format_results(results: dict[Team, Result], n: int, run_time: float) -> list[str]:
@@ -584,7 +588,7 @@ def format_results(results: dict[Team, Result], n: int, run_time: float) -> list
 
 if __name__ == "__main__":
 
-    n_iterations = 10000000  # 增加迭代次数以获得更准确的结果
+    n_iterations = 10000000 # 增加迭代次数以获得更准确的结果
     n_cores = max(1, cpu_count() - 1)  # 保留一个核心给系统使用
 
     # 运行模拟并打印格式化结果

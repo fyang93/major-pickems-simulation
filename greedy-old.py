@@ -11,7 +11,7 @@ import time
 import threading
 import itertools
 
-FILE_PATH = "result_obb.txt"
+FILE_PATH = "result.txt"
 
 ############################################################
 # 1. 你只需要改这里！
