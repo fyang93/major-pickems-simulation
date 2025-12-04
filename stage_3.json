@@ -1,0 +1,88 @@
+{
+  "systems": {
+    "valve": "lambda x: x",
+    "hltv": "lambda x: x"
+  },
+  "teams": {
+    "FURIA": {
+      "seed": 1,
+      "valve": 1744,
+      "hltv": 170
+    },
+    "VIT": {
+      "seed": 2,
+      "valve": 1573,
+      "hltv": 182
+    },
+    "FAL": {
+      "seed": 3,
+      "valve": 1528,
+      "hltv": 80
+    },
+    "MGLZ": {
+      "seed": 4,
+      "valve": 1526,
+      "hltv": 105
+    },
+    "MOUZ": {
+      "seed": 5,
+      "valve": 1410,
+      "hltv":63
+    },
+    "SPIRIT": {
+      "seed": 6,
+      "valve": 1393,
+      "hltv": 34
+    },
+    "G2": {
+      "seed": 7,
+      "valve": 1284,
+      "hltv": 41
+    },
+    "PAIN": {
+      "seed": 8,
+      "valve": 1308,
+      "hltv": 22
+    },
+    "NAVI": {
+      "seed": 9,
+      "valve": 1271,
+      "hltv": 37
+    },
+    "FAZE": {
+      "seed": 10,
+      "valve": 1420,
+      "hltv": 77
+    },
+    "B8": {
+      "seed": 11,
+      "valve": 1321,
+      "hltv": 63
+    },
+    "IMP": {
+      "seed": 12,
+      "valve": 1280,
+      "hltv": 28
+    },
+    "PV": {
+      "seed": 13,
+      "valve": 1076,
+      "hltv": 13
+    },
+    "LQ": {
+      "seed": 14,
+      "valve": 1111,
+      "hltv": 11
+    },
+    "PUA": {
+      "seed": 15,
+      "valve": 1302,
+      "hltv": 30
+    },
+    "3DM": {
+      "seed": 16,
+      "valve": 1175,
+      "hltv": 20
+    }
+  }
+}

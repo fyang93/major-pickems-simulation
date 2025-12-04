@@ -1,0 +1,88 @@
+{
+  "systems": {
+    "valve": "lambda x: x",
+    "hltv": "lambda x: x"
+  },
+  "teams": {
+    "Aurora": {
+      "seed": 1,
+      "valve": 1744,
+      "hltv": 170
+    },
+    "NaVi": {
+      "seed": 2,
+      "valve": 1573,
+      "hltv": 182
+    },
+    "Liquid": {
+      "seed": 3,
+      "valve": 1528,
+      "hltv": 80
+    },
+    "3DMAX": {
+      "seed": 4,
+      "valve": 1526,
+      "hltv": 105
+    },
+    "Astralis": {
+      "seed": 5,
+      "valve": 1410,
+      "hltv":63
+    },
+    "Tyloo": {
+      "seed": 6,
+      "valve": 1393,
+      "hltv": 34
+    },
+    "MiBR": {
+      "seed": 7,
+      "valve": 1284,
+      "hltv": 41
+    },
+    "PUA": {
+      "seed": 8,
+      "valve": 1308,
+      "hltv": 22
+    },
+    "M80": {
+      "seed": 9,
+      "valve": 1271,
+      "hltv": 37
+    },
+    "FlyQuest": {
+      "seed": 10,
+      "valve": 1420,
+      "hltv": 77
+    },
+    "B8": {
+      "seed": 11,
+      "valve": 1321,
+      "hltv": 63
+    },
+    "Fnatic": {
+      "seed": 12,
+      "valve": 1280,
+      "hltv": 28
+    },
+    "NIP": {
+      "seed": 13,
+      "valve": 1076,
+      "hltv": 13
+    },
+    "PARI": {
+      "seed": 14,
+      "valve": 1111,
+      "hltv": 11
+    },
+    "Imperial": {
+      "seed": 15,
+      "valve": 1302,
+      "hltv": 30
+    },
+    "FaZe": {
+      "seed": 16,
+      "valve": 1175,
+      "hltv": 20
+    }
+  }
+}

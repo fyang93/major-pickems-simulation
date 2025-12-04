@@ -2,7 +2,7 @@ from collections import defaultdict
 import re
 import pulp
 
-file_path = "result.txt"
+file_path = "result3.txt"
 
 # -------------------------
 # 1. 解析 result.txt

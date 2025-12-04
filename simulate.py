@@ -13,7 +13,8 @@ import tqdm
 import pandas as pd
 from joblib import Parallel, delayed
 
-file_path = "stage_1.json"
+file_path = "stage_3.json"
+win_matrix_path = "win_matrix_stage3.csv"
 
 def _batch_task(args: tuple[Callable[[int], dict], int]) -> tuple[int, dict]:
     batch_func, iterations = args
@@ -373,10 +374,8 @@ def load_win_matrix_from_csv(file_path: Path | str) -> dict[str, dict[str, float
     从CSV文件加载胜率矩阵
     """
     df = pd.read_csv(file_path, index_col=0)
-    df.index = df.index.astype(str)
-    df.columns = df.columns.astype(str)
     df = df.apply(pd.to_numeric, errors='coerce')
-    return df.to_dict()
+    return df.to_dict(orient='index')
 
 
 @dataclass
@@ -577,7 +576,7 @@ def format_results(results: dict[Team, Result], n: int, run_time: float) -> list
     # 输出组合统计
     all_combinations = list(results.values())[0].pickem_results
     sorted_combinations = sorted(all_combinations.items(), key=lambda x: x[1], reverse=True)
-    filename = "result.txt"
+    filename = "result3.txt"
     with open(filename, 'w', encoding='utf-8') as f:
         for combination, count in sorted_combinations:
             f.write(f"{combination}: {count}/{n} ({count/n*100:.4f}%)\n")
@@ -593,6 +592,6 @@ if __name__ == "__main__":
 
     # 运行模拟并打印格式化结果
     start = perf_counter_ns()
-    results = Simulation(file_path).run(n_iterations, n_cores)
+    results = Simulation(file_path, win_matrix_path).run(n_iterations, n_cores)
     run_time = (perf_counter_ns() - start) / 1_000_000_000
     print("\n".join(format_results(results, n_iterations, run_time)))
